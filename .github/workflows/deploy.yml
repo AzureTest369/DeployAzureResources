@@ -25,4 +25,4 @@ jobs:
         uses: azure/arm-deploy@v1
         with:
           resourceGroupName: 'RG1'
-          template: .github/workflows/deploy.yml # Path to your template
+          template: .github/workflows/azuredeploy.json # Path to your template
