@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.management.azure.com",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageName": {
+      "type": "string",
+      "defaultValue": "[concat('store', uniqueString(resourceGroup().id))]",
+      "metadata": { "description": "Unique name for the storage account" }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-09-01",
+      "name": "[parameters('storageName')]",
+      "location": "[resourceGroup().location]",
+      "sku": { "name": "Standard_LRS" },
+      "kind": "StorageV2",
+      "properties": { "supportsHttpsTrafficOnly": true }
+    }
+  ]
+}
