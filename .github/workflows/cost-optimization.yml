@@ -29,6 +29,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install Cost Management Extension
+        run: az extension add --name costmanagement
+
+      - name: Update Cost Management Extension
+        run: az extension update --name costmanagement
+
       - name: Get Current Month Costs
         id: current-costs
         run: |
