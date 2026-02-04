@@ -1,3 +1,4 @@
+// server.js (hard-coded GitHub values - DO NOT COMMIT THIS FILE WITH REAL TOKEN)
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -7,12 +8,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// Config: set these environment variables for the backend
-// GITHUB_OWNER (owner/org), GITHUB_REPO, GITHUB_TOKEN (PAT)
-const GITHUB_OWNER = process.env.GITHUB_OWNER || 'YOUR_GITHUB_OWNER';
-const GITHUB_REPO = process.env.GITHUB_REPO || 'YOUR_REPO';
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ''; // PAT with repo & workflow scopes
-const WORKFLOW_FILE = 'deploy-vm.yml'; // workflow filename under .github/workflows
+// ===== Hard-coded GitHub config (temporary) =====
+// Replace these values with your actual values BEFORE running:
+const GITHUB_OWNER = 'anweshak369';           // your GitHub user/org
+const GITHUB_REPO  = 'DeployAzureResources';       // repository containing the workflow
+const GITHUB_TOKEN = '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'; // your GitHub PAT (must include repo & workflow scopes)
+
+const WORKFLOW_FILE = 'deploy-vm.yml'; // filename under .github/workflows
+const WORKFLOW_REF  = 'main';          // branch name where the workflow exists
+// ===============================================
 
 // Helper to read template parameters and return parameter metadata
 app.get('/params', (req, res) => {
@@ -44,7 +48,7 @@ app.post('/deploy', async (req, res) => {
   const inputs = req.body || {};
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
   const body = {
-    ref: 'main', // change branch if needed
+    ref: WORKFLOW_REF,
     inputs
   };
 
@@ -59,10 +63,12 @@ app.post('/deploy', async (req, res) => {
       body: JSON.stringify(body)
     });
 
+    // GitHub returns 204 No Content on success
     if (r.status === 204) {
       return res.json({ ok: true, message: 'Workflow dispatched' });
     } else {
       const txt = await r.text();
+      console.error('GitHub API response:', r.status, txt);
       return res.status(500).json({ ok: false, status: r.status, response: txt });
     }
   } catch (err) {
