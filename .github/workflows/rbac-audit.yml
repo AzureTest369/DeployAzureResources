@@ -205,29 +205,29 @@ jobs:
           echo "Generating consolidated audit report..."
 
           # Create a detailed report with all findings
-          cat > "$REPORT_DIR/README.md" << 'EOF'
-# RBAC Audit Report
+          cat > "$REPORT_DIR/README.md" <<'HEREDOC'
+          # RBAC Audit Report
 
-This directory contains the results of the automated RBAC audit.
+          This directory contains the results of the automated RBAC audit.
 
-## Files
+          ## Files
 
-- `rbac-summary.md` - High-level summary and analysis
-- `*_roles.json` - Detailed role assignment data for each resource group
+          - `rbac-summary.md` - High-level summary and analysis
+          - `*_roles.json` - Detailed role assignment data for each resource group
 
-## Usage
+          ## Usage
 
-1. Review the summary report for overall findings
-2. Examine individual JSON files for detailed role information
-3. Follow recommendations in the summary for remediation
+          1. Review the summary report for overall findings
+          2. Examine individual JSON files for detailed role information
+          3. Follow recommendations in the summary for remediation
 
-## Automation
+          ## Automation
 
-This report is generated automatically by the RBAC Audit workflow.
-- Schedule: Weekly (Mondays at 8 AM UTC)
-- Can be triggered manually from Actions tab
+          This report is generated automatically by the RBAC Audit workflow.
+          - Schedule: Weekly (Mondays at 8 AM UTC)
+          - Can be triggered manually from Actions tab
 
-EOF
+          HEREDOC
 
           echo "✓ Report generation complete"
 
