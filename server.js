@@ -9,14 +9,22 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// ===== Hard-coded GitHub config (temporary) =====
-// Replace with your values (or switch back to env vars later)
-const GITHUB_OWNER = 'anweshak369';           // your GitHub user/org
-const GITHUB_REPO  = 'DeployAzureResources'; // repository containing the workflow
-const GITHUB_TOKEN = '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'; // your GitHub PAT (must include repo & workflow scopes)
-const WORKFLOW_FILE = 'deploy-vm.yml'; // filename under .github/workflows
-const WORKFLOW_REF  = 'main';          // branch name where the workflow exists
-// ===============================================
+// ===== GitHub configuration from environment variables =====
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'AzureTest369'; // GitHub user/org
+const GITHUB_REPO  = process.env.GITHUB_REPO || 'DeployAzureResources'; // repository containing the workflow
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // GitHub PAT (must include repo & workflow scopes)
+const WORKFLOW_FILE = process.env.WORKFLOW_FILE || 'deploy-vm.yml'; // filename under .github/workflows
+const WORKFLOW_REF  = process.env.WORKFLOW_REF || 'main'; // branch name where the workflow exists
+
+// Validate required configuration at startup
+if (!GITHUB_TOKEN) {
+  console.error('ERROR: GITHUB_TOKEN environment variable is required but not set.');
+  console.error('Please set a GitHub Personal Access Token with "repo" and "workflow" scopes.');
+  console.error('Example: export GITHUB_TOKEN="your_token_here"');
+  console.error('See .env.example for more details.');
+  process.exit(1);
+}
+// ===============================================================
 
 const TEMPLATE_FILE = path.join(__dirname, 'azuredeploy.json');
 const PARAMS_FILE = path.join(__dirname, 'azuredeploy.parameters.json');

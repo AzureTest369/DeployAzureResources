@@ -83,12 +83,6 @@
         payload[k] = v;
       }
 
-      // Basic validation: sshKeyData must be non-empty
-      if (payload.sshKeyData && payload.sshKeyData.trim().length === 0) {
-        document.getElementById('status').innerText = 'Please provide an SSH public key.';
-        return;
-      }
-
       document.getElementById('status').innerText = 'Dispatching workflow...';
       try {
         const r = await fetch('/deploy', {
