@@ -1,0 +1,105 @@
+name: Build & deploy VM Deployer UI and API to Azure Web App
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: 'Resource group to deploy to (overrides secret AZ_RESOURCE_GROUP)'
+        required: false
+      webapp_name:
+        description: 'Web App name (overrides secret AZ_WEBAPP_NAME)'
+        required: false
+      region:
+        description: 'Azure region (overrides secret AZ_REGION)'
+        required: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Azure login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-oidc: true
+          # If you prefer client-secret login, remove enable-oidc and provide AZURE_CLIENT_SECRET as a secret
+
+      - name: Build client
+        working-directory: ./client
+        run: |
+          npm ci
+          # Ensure client has a build script that outputs to ./dist or ./build
+          npm run build
+
+      - name: Build server (install prod deps)
+        working-directory: ./server
+        run: |
+          npm ci
+          # Prepare server/public directory and copy client build there
+          rm -rf public
+          mkdir -p public
+          # Adjust client build output directory if different (dist/build)
+          cp -R ../client/dist/* public/ || cp -R ../client/build/* public/ || true
+
+      - name: Package app for deployment (zip server contents)
+        run: |
+          cd server
+          # Create a zip of server/* so files are at the zip root
+          zip -r ../deploy.zip . -x "node_modules/**/.cache/**"
+
+      - name: Ensure resource group exists
+        env:
+          RG: ${{ github.event.inputs.resource_group || secrets.AZ_RESOURCE_GROUP }}
+          REGION: ${{ github.event.inputs.region || secrets.AZ_REGION }}
+        run: |
+          az group create --name "$RG" --location "${REGION}"
+
+      - name: Ensure App Service plan exists
+        env:
+          RG: ${{ github.event.inputs.resource_group || secrets.AZ_RESOURCE_GROUP }}
+          PLAN: ${{ secrets.AZ_APP_PLAN }}
+          REGION: ${{ github.event.inputs.region || secrets.AZ_REGION }}
+        run: |
+          # Create Linux plan (B1) if not exists
+          set -e
+          if ! az appservice plan show --name "$PLAN" --resource-group "$RG" >/dev/null 2>&1; then
+            az appservice plan create --name "$PLAN" --resource-group "$RG" --is-linux --sku B1 --location "${REGION}"
+          else
+            echo "App Service plan $PLAN already exists"
+          fi
+
+      - name: Ensure Web App exists
+        env:
+          RG: ${{ github.event.inputs.resource_group || secrets.AZ_RESOURCE_GROUP }}
+          PLAN: ${{ secrets.AZ_APP_PLAN }}
+          APP: ${{ github.event.inputs.webapp_name || secrets.AZ_WEBAPP_NAME }}
+        run: |
+          set -e
+          if ! az webapp show --name "$APP" --resource-group "$RG" >/dev/null 2>&1; then
+            az webapp create --resource-group "$RG" --plan "$PLAN" --name "$APP" --runtime "NODE|18-lts"
+          else
+            echo "Web App $APP already exists"
+          fi
+
+      - name: Deploy zip to Web App
+        env:
+          RG: ${{ github.event.inputs.resource_group || secrets.AZ_RESOURCE_GROUP }}
+          APP: ${{ github.event.inputs.webapp_name || secrets.AZ_WEBAPP_NAME }}
+        run: |
+          az webapp deploy --resource-group "$RG" --name "$APP" --src-path ./deploy.zip
+
+      - name: Output URL
+        env:
+          APP: ${{ github.event.inputs.webapp_name || secrets.AZ_WEBAPP_NAME }}
+        run: |
+          echo "App deployed at: https://${APP}.azurewebsites.net"
