@@ -1,5 +1,6 @@
 // server.js
 // Reads template + parameters file and exposes /params and /deploy
+require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -9,13 +10,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// ===== Hard-coded GitHub config (temporary) =====
-// Replace with your values (or switch back to env vars later)
-const GITHUB_OWNER = 'anweshak369';           // your GitHub user/org
-const GITHUB_REPO  = 'DeployAzureResources'; // repository containing the workflow
-const GITHUB_TOKEN = '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'; // your GitHub PAT (must include repo & workflow scopes)
-const WORKFLOW_FILE = 'deploy-vm.yml'; // filename under .github/workflows
-const WORKFLOW_REF  = 'main';          // branch name where the workflow exists
+// ===== GitHub config from environment variables =====
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'AzureTest369';
+const GITHUB_REPO = process.env.GITHUB_REPO || 'DeployAzureResources';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const WORKFLOW_FILE = process.env.WORKFLOW_FILE || 'deploy-vm.yml';
+const WORKFLOW_REF = process.env.WORKFLOW_REF || 'main';
+
+// Debug: Check if GITHUB_TOKEN is present (for testing only)
+// console.log('GITHUB_TOKEN present?', !!process.env.GITHUB_TOKEN);
 // ===============================================
 
 const TEMPLATE_FILE = path.join(__dirname, 'azuredeploy.json');
