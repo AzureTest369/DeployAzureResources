@@ -8,99 +8,109 @@
     label { display:block; margin-top:10px; }
     select, input, textarea { width:100%; padding:8px; margin-top:4px; }
     button { margin-top:12px; padding:10px 16px; }
-    .status { margin-top:12px; }
+    .status { margin-top:12px; white-space:pre-wrap; }
+    .param-row { margin-bottom:8px; }
   </style>
 </head>
 <body>
   <h1>Deploy VM</h1>
   <form id="deployForm">
-    <label>VM Name
-      <input id="vmName" name="vmName" required>
-    </label>
-
-    <label>Location
-      <input id="location" name="location" required>
-    </label>
-
-    <label>VM Size
-      <select id="vmSize" name="vmSize"></select>
-    </label>
-
-    <label>Admin Username
-      <input id="adminUsername" name="adminUsername" required>
-    </label>
-
-    <label>SSH Public Key
-      <textarea id="sshKeyData" name="sshKeyData" rows="4" placeholder="ssh-rsa AAAA..."></textarea>
-    </label>
-
+    <div id="paramsContainer"></div>
     <button type="submit">Deploy</button>
   </form>
 
   <div class="status" id="status"></div>
 
   <script>
-    async function fetchParams() {
+    // Build form dynamically from /params
+    async function fetchParamsAndBuildForm() {
       const res = await fetch('/params');
+      if (!res.ok) throw new Error('Failed to load params');
       const data = await res.json();
       const params = data.parameters || {};
-      // Fill defaults
-      if (params.vmName && params.vmName.defaultValue) {
-        document.getElementById('vmName').value = params.vmName.defaultValue;
-      }
-      if (params.location && params.location.defaultValue) {
-        document.getElementById('location').value = params.location.defaultValue;
-      }
-      if (params.adminUsername && params.adminUsername.defaultValue) {
-        document.getElementById('adminUsername').value = params.adminUsername.defaultValue;
-      }
-      // Populate vmSize dropdown
-      const vmSizeSelect = document.getElementById('vmSize');
-      if (params.vmSize) {
-        if (params.vmSize.allowedValues && params.vmSize.allowedValues.length) {
-          params.vmSize.allowedValues.forEach(v => {
+      const container = document.getElementById('paramsContainer');
+
+      // For each parameter create an appropriate control
+      Object.keys(params).forEach((key) => {
+        const meta = params[key];
+        const row = document.createElement('div');
+        row.className = 'param-row';
+
+        const label = document.createElement('label');
+        label.innerText = `${key} ${meta.description ? '- ' + meta.description : ''}`;
+
+        // Choose control:
+        let control;
+        // If parameter has allowedValues -> select dropdown
+        if (meta.allowedValues && Array.isArray(meta.allowedValues) && meta.allowedValues.length > 0) {
+          control = document.createElement('select');
+          control.name = key;
+          meta.allowedValues.forEach((v) => {
             const opt = document.createElement('option');
             opt.value = v;
             opt.innerText = v;
-            vmSizeSelect.appendChild(opt);
+            control.appendChild(opt);
           });
-          if (params.vmSize.defaultValue) {
-            vmSizeSelect.value = params.vmSize.defaultValue;
-          }
+          if (meta.defaultValue !== null && meta.defaultValue !== undefined) control.value = meta.defaultValue;
+        } else if (key.toLowerCase().includes('ssh') || key.toLowerCase().includes('key')) {
+          // For sshKeyData and similar use a textarea
+          control = document.createElement('textarea');
+          control.name = key;
+          control.rows = 4;
+          control.placeholder = 'ssh-rsa AAAA...';
+          if (meta.defaultValue) control.value = meta.defaultValue;
         } else {
-          // fallback if no allowedValues
-          const opt = document.createElement('option');
-          opt.value = params.vmSize.defaultValue || 'Standard_B1s';
-          opt.innerText = opt.value;
-          vmSizeSelect.appendChild(opt);
+          // default: text input
+          control = document.createElement('input');
+          control.type = 'text';
+          control.name = key;
+          if (meta.defaultValue) control.value = meta.defaultValue;
         }
-      }
+
+        control.id = `param_${key}`;
+        label.appendChild(control);
+        row.appendChild(label);
+        container.appendChild(row);
+      });
     }
 
     document.getElementById('deployForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const payload = {
-        vmName: document.getElementById('vmName').value,
-        location: document.getElementById('location').value,
-        vmSize: document.getElementById('vmSize').value,
-        adminUsername: document.getElementById('adminUsername').value,
-        sshKeyData: document.getElementById('sshKeyData').value
-      };
+      const form = e.target;
+      const fd = new FormData(form);
+      const payload = {};
+      for (const [k, v] of fd.entries()) {
+        payload[k] = v;
+      }
+
+      // Basic validation: sshKeyData must be non-empty
+      if (payload.sshKeyData && payload.sshKeyData.trim().length === 0) {
+        document.getElementById('status').innerText = 'Please provide an SSH public key.';
+        return;
+      }
+
       document.getElementById('status').innerText = 'Dispatching workflow...';
-      const res = await fetch('/deploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        document.getElementById('status').innerText = 'Workflow dispatched. Check Actions tab in GitHub.';
-      } else {
-        document.getElementById('status').innerText = 'Error: ' + JSON.stringify(data);
+      try {
+        const r = await fetch('/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await r.json();
+        if (r.ok) {
+          document.getElementById('status').innerText = 'Workflow dispatched. Check Actions tab in GitHub.';
+        } else {
+          document.getElementById('status').innerText = 'Error sending dispatch: ' + JSON.stringify(json, null, 2);
+        }
+      } catch (err) {
+        document.getElementById('status').innerText = 'Request error: ' + err.message;
       }
     });
 
-    fetchParams().catch(err => { console.error(err); document.getElementById('status').innerText = 'Failed to load params'; });
+    fetchParamsAndBuildForm().catch(err => {
+      console.error(err);
+      document.getElementById('status').innerText = 'Failed to load params: ' + err.message;
+    });
   </script>
 </body>
 </html>
