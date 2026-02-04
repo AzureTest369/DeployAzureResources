@@ -94,16 +94,19 @@ A web-based interface is available for triggering VM deployments:
 
 For comprehensive documentation on additional use cases, workflows, and best practices for GitHub Actions and GitHub Agents (Copilot) in Azure infrastructure management, see:
 
-📚 **[Azure GitHub Use Cases Documentation](AZURE_GITHUB_USE_CASES.md)**
+📚 **[Azure GitHub Use Cases Documentation](AZURE_GITHUB_USE_CASES.md)** - Comprehensive guide with detailed examples and explanations
 
-This guide covers:
+⚡ **[Quick Reference Guide](QUICK_REFERENCE.md)** - Condensed reference for common patterns and quick access
+
+This documentation covers:
 - 10+ GitHub Actions use cases for Azure administrators
 - 10+ GitHub Copilot/Agents use cases
-- Cost optimization workflows
+- Cost optimization workflows (with [example implementation](.github/workflows/cost-optimization.yml))
 - Security and compliance automation
 - Backup and disaster recovery
 - Multi-environment deployments
 - Container and Kubernetes operations
+- Best practices and troubleshooting tips
 - And much more!
 
 ## Workflows
