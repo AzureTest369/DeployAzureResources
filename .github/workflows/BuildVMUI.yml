@@ -1,5 +1,7 @@
 name: Build & deploy VM Deployer UI and API to Azure Web App
-
+permissions:
+  id-token: write
+  contents: read
 on:
   workflow_dispatch:
     inputs:
