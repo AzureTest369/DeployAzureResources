@@ -1,0 +1,171 @@
+name: Diagnose Azure Web App (OIDC)
+
+on:
+  workflow_dispatch:
+    inputs:
+      subscription_id:
+        description: 'Azure Subscription ID'
+        required: true
+      resource_group:
+        description: 'Resource group'
+        required: true
+      app_name:
+        description: 'App Service name'
+        required: true
+      app_insights:
+        description: 'App Insights app name (optional)'
+        required: false
+
+permissions:
+  contents: read
+  issues: write     # needed to create an issue automatically
+  id-token: write   # required for OIDC login
+  actions: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: ops-diagnostics
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq zip curl unzip
+
+      - name: Azure login (OIDC) - uses federated credential
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}   # SP with federated credential
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Set variables
+        env:
+          SUBSCRIPTION: ${{ github.event.inputs.subscription_id }}
+          RESOURCE_GROUP: ${{ github.event.inputs.resource_group }}
+          APP_NAME: ${{ github.event.inputs.app_name }}
+          APP_INSIGHTS: ${{ github.event.inputs.app_insights }}
+        run: |
+          echo "SUBSCRIPTION=${SUBSCRIPTION}" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=${RESOURCE_GROUP}" >> $GITHUB_ENV
+          echo "APP_NAME=${APP_NAME}" >> $GITHUB_ENV
+          echo "APP_INSIGHTS=${APP_INSIGHTS}" >> $GITHUB_ENV
+          mkdir -p diagnostics
+
+      - name: Set subscription
+        run: |
+          az account set -s "$SUBSCRIPTION" || az account show
+
+      - name: Collect App Service metadata & settings
+        run: |
+          az webapp show -g "$RESOURCE_GROUP" -n "$APP_NAME" > diagnostics/app_show.json || true
+          az webapp config appsettings list -g "$RESOURCE_GROUP" -n "$APP_NAME" > diagnostics/appsettings.json || true
+          az webapp deployment list -g "$RESOURCE_GROUP" -n "$APP_NAME" > diagnostics/deployments.json || true
+          jq . diagnostics/app_show.json || true
+
+      - name: Download App Service logs (may be empty if not enabled)
+        run: |
+          az webapp log download -g "$RESOURCE_GROUP" -n "$APP_NAME" --log-file diagnostics/app_logs.zip || true
+          if [ -f diagnostics/app_logs.zip ]; then unzip -q diagnostics/app_logs.zip -d diagnostics/logs || true; fi
+
+      - name: Resource Health
+        run: |
+          az rest --method get --uri "https://management.azure.com/subscriptions/${SUBSCRIPTION}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${APP_NAME}/providers/Microsoft.ResourceHealth/availabilityStatuses/current?api-version=2017-07-01" > diagnostics/health.json || true
+          jq . diagnostics/health.json || true
+
+      - name: Try to fetch publishing profile (for Kudu/publishing access) - optional
+        run: |
+          # Requires the SP/identity to have permission to list publishing profile
+          az webapp deployment list-publishing-profiles -g "$RESOURCE_GROUP" -n "$APP_NAME" --xml > diagnostics/publishing_profiles.xml || true
+
+      - name: App Insights: failed requests & exceptions (optional)
+        if: ${{ github.event.inputs.app_insights != '' }}
+        run: |
+          mkdir -p diagnostics/appinsights
+          # Failed requests in last 1h
+          az monitor app-insights query --app "$APP_INSIGHTS" --analytics-query "requests | where timestamp > ago(1h) and success == false | summarize count() by resultCode" > diagnostics/ai_failed_requests.json || true
+          # Exceptions in last 1h
+          az monitor app-insights query --app "$APP_INSIGHTS" --analytics-query "exceptions | where timestamp > ago(1h) | summarize count() by type" > diagnostics/ai_exceptions.json || true
+          jq . diagnostics/ai_failed_requests.json || true
+          jq . diagnostics/ai_exceptions.json || true
+
+      - name: Basic smoke test (HTTP) and status code
+        run: |
+          URL="https://${APP_NAME}.azurewebsites.net"
+          echo "Testing $URL"
+          HTTP_CODE=$(curl -s -o /tmp/response_body -w "%{http_code}" --max-time 15 "$URL" || echo "000")
+          echo "$HTTP_CODE" > diagnostics/http_status.txt
+          if [ -s /tmp/response_body ]; then mv /tmp/response_body diagnostics/response_body.html; fi
+          echo "HTTP_CODE=$HTTP_CODE"
+          jq -n --arg code "$HTTP_CODE" '{"http_code":$code}' > diagnostics/http_status.json
+
+      - name: Summarize diagnostics and detect issues
+        id: analyze
+        run: |
+          # defaults
+          FAILED_REQS=0
+          EXCEPTIONS=0
+          HTTP_CODE=$(jq -r '.http_code' diagnostics/http_status.json)
+
+          if [ -f diagnostics/ai_failed_requests.json ]; then
+            FAILED_REQS=$(jq -r '.tables[0].rows | length // 0' diagnostics/ai_failed_requests.json)
+          fi
+          if [ -f diagnostics/ai_exceptions.json ]; then
+            EXCEPTIONS=$(jq -r '.tables[0].rows | length // 0' diagnostics/ai_exceptions.json)
+          fi
+
+          cat > diagnostics/summary.txt <<EOF
+App: ${APP_NAME}
+Resource Group: ${RESOURCE_GROUP}
+Subscription: ${SUBSCRIPTION}
+HTTP status code (root): ${HTTP_CODE}
+App Insights failed request rows: ${FAILED_REQS}
+App Insights exception rows: ${EXCEPTIONS}
+See diagnostics/ folder for details.
+EOF
+
+          echo "SUMMARY<<EOF" >> $GITHUB_OUTPUT
+          echo "http_code=${HTTP_CODE}" >> $GITHUB_OUTPUT
+          echo "failed_reqs=${FAILED_REQS}" >> $GITHUB_OUTPUT
+          echo "exceptions=${EXCEPTIONS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Zip diagnostics
+        run: |
+          zip -r diagnostics.zip diagnostics || true
+
+      - name: Upload diagnostics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-webapp-diagnostics-${{ github.run_id }}-${{ github.event.inputs.app_name }}
+          path: diagnostics.zip
+
+      - name: Create GitHub issue if problems detected
+        if: steps.analyze.outputs.failed_reqs != '0' || steps.analyze.outputs.exceptions != '0' || steps.analyze.outputs.http_code != '200'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const http = context.payload.inputs ? context.payload.inputs : {};
+            const summary = `Automated diagnostic: ${process.env.APP_NAME} (resourceGroup ${process.env.RESOURCE_GROUP})`;
+            const body = `Diagnostics artifact: see Actions run ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}
+
+Summary:
+- HTTP status: ${steps.analyze.outputs.http_code}
+- App Insights failed request rows: ${steps.analyze.outputs.failed_reqs}
+- App Insights exception rows: ${steps.analyze.outputs.exceptions}
+
+Attached: diagnostics.zip (download from Artifacts)
+`;
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[AUTODIAG] ${process.env.APP_NAME} - diagnostic findings`,
+              body: body,
+              labels: ["autodiagnostic", "investigate"]
+            });
+            core.info(`Created issue ${issue.data.html_url}`);
