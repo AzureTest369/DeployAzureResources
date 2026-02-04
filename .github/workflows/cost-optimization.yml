@@ -33,7 +33,7 @@ jobs:
         run: az extension add --name costmanagement
 
       - name: Update Cost Management Extension
-        run: az extension update --name costmanagement
+        run: az extension update --name costmanagement || true
 
       - name: Get Current Month Costs
         id: current-costs
