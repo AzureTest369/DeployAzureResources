@@ -156,7 +156,7 @@ This documentation covers:
 - 10+ GitHub Actions use cases for Azure administrators
 - 10+ GitHub Copilot/Agents use cases
 - Cost optimization workflows (with [example implementation](.github/workflows/cost-optimization.yml))
-- Security and compliance automation
+- Security and compliance automation (with [RBAC auditing workflow](.github/workflows/rbac-audit.yml))
 - Backup and disaster recovery
 - Multi-environment deployments
 - Container and Kubernetes operations
@@ -201,6 +201,30 @@ Simple continuous deployment workflow:
 - Triggered on push to main branch
 - Deploys ARM template automatically
 - Uses OIDC for authentication
+
+### RBAC Auditing and Remediation
+
+Automated security and compliance workflow for Azure role-based access control:
+- Enumerates role assignments for all resource groups in subscription
+- Generates comprehensive audit reports with security analysis
+- Identifies high-privilege roles (Owner, Contributor)
+- Provides remediation recommendations and commands
+- Uploads detailed reports as workflow artifacts
+
+**Trigger**: Scheduled (Weekly - Mondays at 8 AM UTC) and Manual (workflow_dispatch)
+
+**Features**:
+- Automatic enumeration of RBAC assignments across all resource groups
+- JSON export of detailed role assignment data for each resource group
+- Markdown summary report with security analysis
+- Detection of overly permissive role assignments
+- Actionable remediation guidance
+- 90-day artifact retention for compliance tracking
+
+**Output**:
+- `rbac-summary.md` - High-level summary and security analysis
+- `<resource-group>_roles.json` - Detailed role assignments per resource group
+- README with usage instructions
 
 ## Security
 
