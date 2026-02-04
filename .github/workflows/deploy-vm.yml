@@ -21,7 +21,7 @@ on:
         default: 'azureuser'
       sshKeyData:
         description: 'SSH public key'
-        required: true
+        required: false
         default: ''
 
 jobs:
