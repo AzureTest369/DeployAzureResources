@@ -1,4 +1,5 @@
-// server.js (hard-coded GitHub values - DO NOT COMMIT THIS FILE WITH REAL TOKEN)
+// server.js
+// Reads template + parameters file and exposes /params and /deploy
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -9,35 +10,53 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ===== Hard-coded GitHub config (temporary) =====
-// Replace these values with your actual values BEFORE running:
+// Replace with your values (or switch back to env vars later)
 const GITHUB_OWNER = 'anweshak369';           // your GitHub user/org
-const GITHUB_REPO  = 'DeployAzureResources';       // repository containing the workflow
+const GITHUB_REPO  = 'DeployAzureResources'; // repository containing the workflow
 const GITHUB_TOKEN = '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'; // your GitHub PAT (must include repo & workflow scopes)
-
 const WORKFLOW_FILE = 'deploy-vm.yml'; // filename under .github/workflows
 const WORKFLOW_REF  = 'main';          // branch name where the workflow exists
 // ===============================================
 
-// Helper to read template parameters and return parameter metadata
-app.get('/params', (req, res) => {
-  const tplPath = path.join(__dirname, 'azuredeploy.json');
+const TEMPLATE_FILE = path.join(__dirname, 'azuredeploy.json');
+const PARAMS_FILE = path.join(__dirname, 'azuredeploy.parameters.json');
+
+function safeReadJson(p) {
   try {
-    const tpl = JSON.parse(fs.readFileSync(tplPath, 'utf8'));
-    const params = tpl.parameters || {};
-    const metadata = {};
-    Object.keys(params).forEach((k) => {
-      metadata[k] = {
-        type: params[k].type,
-        defaultValue: params[k].defaultValue || null,
-        allowedValues: params[k].allowedValues || null,
-        description: (params[k].metadata && params[k].metadata.description) || ''
-      };
-    });
-    res.json({ parameters: metadata });
+    const raw = fs.readFileSync(p, 'utf8');
+    return JSON.parse(raw);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to read template' });
+    return null;
   }
+}
+
+// GET /params -> returns metadata for each parameter (type, allowedValues, defaultValue, description)
+app.get('/params', (req, res) => {
+  const tpl = safeReadJson(TEMPLATE_FILE);
+  const pfile = safeReadJson(PARAMS_FILE);
+  if (!tpl) return res.status(500).json({ error: 'Template not found or invalid' });
+
+  const tplParams = tpl.parameters || {};
+  const pfileParams = (pfile && pfile.parameters) || {};
+
+  const metadata = {};
+  Object.keys(tplParams).forEach((k) => {
+    const p = tplParams[k];
+    // parameter-level defaultValue from template (if any)
+    const tplDefault = p.defaultValue !== undefined ? p.defaultValue : null;
+    // parameter value from azuredeploy.parameters.json
+    const paramFileValue = (pfileParams[k] && pfileParams[k].value) !== undefined ? pfileParams[k].value : null;
+
+    metadata[k] = {
+      name: k,
+      type: p.type || 'string',
+      allowedValues: p.allowedValues || null,
+      description: (p.metadata && p.metadata.description) || '',
+      defaultValue: paramFileValue !== null ? paramFileValue : tplDefault
+    };
+  });
+
+  res.json({ parameters: metadata });
 });
 
 // Trigger GitHub Actions workflow_dispatch
@@ -63,7 +82,6 @@ app.post('/deploy', async (req, res) => {
       body: JSON.stringify(body)
     });
 
-    // GitHub returns 204 No Content on success
     if (r.status === 204) {
       return res.json({ ok: true, message: 'Workflow dispatched' });
     } else {
@@ -73,7 +91,7 @@ app.post('/deploy', async (req, res) => {
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to call GitHub API' });
+    res.status(500).json({ error: 'Failed to call GitHub API', detail: err.message });
   }
 });
 
