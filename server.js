@@ -83,7 +83,7 @@ app.post('/deploy', async (req, res) => {
     const r = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Authorization: `token ${GITHUB_TOKEN}`,
         Accept: 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },

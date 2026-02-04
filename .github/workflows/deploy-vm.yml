@@ -19,16 +19,8 @@ on:
         description: 'Admin username'
         required: true
         default: 'azureuser'
-      authenticationType:
-        description: 'Authentication type (sshPublicKey or password)'
-        required: true
-        default: 'password'
-        type: choice
-        options:
-          - password
-          - sshPublicKey
-      adminPasswordOrKey:
-        description: 'SSH public key or password for authentication'
+      adminPassword:
+        description: 'Admin password for the Virtual Machine'
         required: true
         default: ''
 
@@ -62,6 +54,5 @@ jobs:
             --parameters vmName="${{ github.event.inputs.vmName }}" \
             --parameters vmSize="${{ github.event.inputs.vmSize }}" \
             --parameters adminUsername="${{ github.event.inputs.adminUsername }}" \
-            --parameters authenticationType="${{ github.event.inputs.authenticationType }}" \
-            --parameters adminPasswordOrKey="${{ github.event.inputs.adminPasswordOrKey }}" \
+            --parameters adminPassword="${{ github.event.inputs.adminPassword }}" \
             --parameters location="${{ github.event.inputs.location }}"

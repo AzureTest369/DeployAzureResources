@@ -52,6 +52,12 @@
             control.appendChild(opt);
           });
           if (meta.defaultValue !== null && meta.defaultValue !== undefined) control.value = meta.defaultValue;
+        } else if (key.toLowerCase().includes('password')) {
+          // For password fields use password input
+          control = document.createElement('input');
+          control.type = 'password';
+          control.name = key;
+          if (meta.defaultValue) control.value = meta.defaultValue;
         } else if (key.toLowerCase().includes('ssh') || key.toLowerCase().includes('key')) {
           // For sshKeyData and similar use a textarea
           control = document.createElement('textarea');
