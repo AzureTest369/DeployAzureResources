@@ -44,7 +44,8 @@ To trigger workflows from the web UI, you need a GitHub Personal Access Token.
    - Azure Location
    - VM Size
    - Admin Username
-   - SSH Public Key
+   - Authentication Type (password or sshPublicKey)
+   - Admin Password or SSH Key (based on authentication type)
 5. Click "Run workflow" to start deployment
 
 ### Option 2: Deploy via Web UI
@@ -77,7 +78,8 @@ The `azuredeploy.json` template accepts the following parameters:
 - **location**: Azure region (default: "eastus")
 - **vmSize**: VM size - Standard_B1s, Standard_B2s, or Standard_D2s_v3 (default: "Standard_B1s")
 - **adminUsername**: Admin username for the VM (default: "azureuser")
-- **sshKeyData**: SSH public key for authentication (required, no default)
+- **authenticationType**: Type of authentication - "password" or "sshPublicKey" (default: "password")
+- **adminPasswordOrKey**: Password or SSH public key for authentication (optional, secure string)
 
 ## Resources Created
 
@@ -95,6 +97,7 @@ The ARM template creates:
 - Use GitHub Secrets for sensitive data
 - OIDC authentication is preferred over service principal secrets
 - SSH keys should be generated securely and never committed
+- When using password authentication, ensure passwords meet Azure's complexity requirements
 
 ## Troubleshooting
 

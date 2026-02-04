@@ -14,8 +14,11 @@
     "adminUsername": {
       "value": "azureuser"
     },
-    "sshKeyData": {
-      "value": "ssh-rsa AAAA...your-public-key... user@host"
+    "authenticationType": {
+      "value": "password"
+    },
+    "adminPasswordOrKey": {
+      "value": ""
     }
   }
 }

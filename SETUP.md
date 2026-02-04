@@ -27,7 +27,8 @@ This is the easiest way - just use the GitHub UI directly:
    - **Azure Location**: e.g., `eastus`
    - **VM Size**: Choose from Standard_B1s, Standard_B2s, or Standard_D2s_v3
    - **Admin Username**: e.g., `azureuser`
-   - **SSH Public Key**: Paste your SSH public key (required!)
+   - **Authentication Type**: Choose `password` or `sshPublicKey`
+   - **Admin Password or SSH Key**: Provide a password or SSH public key based on authentication type chosen
 
 5. **Deploy**: Click "Run workflow" to start the deployment
 
@@ -72,9 +73,9 @@ If you want to use the web interface:
    - Server will trigger the GitHub Actions workflow
    - Check the Actions tab for progress
 
-## SSH Key Generation
+## SSH Key Generation (Optional)
 
-If you don't have an SSH key:
+If you choose SSH key authentication and don't have an SSH key:
 
 ```bash
 # Generate a new SSH key
@@ -84,7 +85,9 @@ ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
 cat ~/.ssh/id_rsa.pub
 ```
 
-Then paste the output (starts with `ssh-rsa ...`) into the sshKeyData parameter.
+Then paste the output (starts with `ssh-rsa ...`) into the adminPasswordOrKey parameter.
+
+**Note**: You can also use password authentication instead of SSH keys. Simply choose `password` as the authentication type and provide a secure password.
 
 ## Troubleshooting
 

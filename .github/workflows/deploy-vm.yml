@@ -19,9 +19,17 @@ on:
         description: 'Admin username'
         required: true
         default: 'azureuser'
-      sshKeyData:
-        description: 'SSH public key'
+      authenticationType:
+        description: 'Authentication type (sshPublicKey or password)'
         required: true
+        default: 'password'
+        type: choice
+        options:
+          - password
+          - sshPublicKey
+      adminPasswordOrKey:
+        description: 'SSH public key or password for authentication'
+        required: false
         default: ''
 
 jobs:
@@ -51,9 +59,9 @@ jobs:
           az deployment group create \
             --resource-group "${{ secrets.RESOURCE_GROUP }}" \
             --template-file azuredeploy.json \
-            --parameters @azuredeploy.parameters.json \
             --parameters vmName="${{ github.event.inputs.vmName }}" \
             --parameters vmSize="${{ github.event.inputs.vmSize }}" \
             --parameters adminUsername="${{ github.event.inputs.adminUsername }}" \
-            --parameters sshKeyData="${{ github.event.inputs.sshKeyData }}" \
+            --parameters authenticationType="${{ github.event.inputs.authenticationType }}" \
+            --parameters adminPasswordOrKey="${{ github.event.inputs.adminPasswordOrKey }}" \
             --parameters location="${{ github.event.inputs.location }}"

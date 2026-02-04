@@ -35,10 +35,22 @@
         "description": "Admin username"
       }
     },
-    "sshKeyData": {
+    "authenticationType": {
       "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "sshPublicKey",
+        "password"
+      ],
       "metadata": {
-        "description": "SSH public key"
+        "description": "Type of authentication to use on the Virtual Machine. SSH key is recommended."
+      }
+    },
+    "adminPasswordOrKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SSH Key or password for the Virtual Machine. SSH key is recommended."
       }
     }
   },
@@ -123,17 +135,8 @@
         "osProfile": {
           "computerName": "[parameters('vmName')]",
           "adminUsername": "[parameters('adminUsername')]",
-          "linuxConfiguration": {
-            "disablePasswordAuthentication": true,
-            "ssh": {
-              "publicKeys": [
-                {
-                  "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-                  "keyData": "[parameters('sshKeyData')]"
-                }
-              ]
-            }
-          }
+          "adminPassword": "[if(equals(parameters('authenticationType'), 'password'), parameters('adminPasswordOrKey'), json('null'))]",
+          "linuxConfiguration": "[if(equals(parameters('authenticationType'), 'sshPublicKey'), createObject('disablePasswordAuthentication', true(), 'ssh', createObject('publicKeys', createArray(createObject('path', concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys'), 'keyData', parameters('adminPasswordOrKey'))))), json('null'))]"
         },
         "storageProfile": {
           "imageReference": {
