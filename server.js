@@ -78,7 +78,7 @@ app.post('/deploy', async (req, res) => {
   const inputs = req.body || {};
   
   // Validate that we're not passing empty SSH values when using password auth
-  if (inputs.authenticationType === 'password' && inputs.sshPublicKey) {
+  if (inputs.authenticationType === 'password' && inputs.sshPublicKey && inputs.sshPublicKey !== '') {
     delete inputs.sshPublicKey;
   }
   

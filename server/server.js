@@ -82,7 +82,7 @@ app.post('/api/deploy', async (req, res) => {
     const armParams = {};
     for (const [k, v] of Object.entries(parameters)) {
       // Don't pass empty SSH values when using password authentication
-      if (k === 'sshPublicKey' && (!v || v === '')) continue;
+      if (k === 'sshPublicKey' && !v) continue;
       armParams[k] = { value: v };
     }
 
