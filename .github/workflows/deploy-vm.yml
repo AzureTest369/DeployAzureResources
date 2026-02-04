@@ -29,7 +29,7 @@ on:
           - sshPublicKey
       adminPasswordOrKey:
         description: 'SSH public key or password for authentication'
-        required: false
+        required: true
         default: ''
 
 jobs:

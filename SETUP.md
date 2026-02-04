@@ -28,7 +28,7 @@ This is the easiest way - just use the GitHub UI directly:
    - **VM Size**: Choose from Standard_B1s, Standard_B2s, or Standard_D2s_v3
    - **Admin Username**: e.g., `azureuser`
    - **Authentication Type**: Choose `password` or `sshPublicKey`
-   - **Admin Password or SSH Key**: Provide a password or SSH public key based on authentication type chosen
+   - **Admin Password or SSH Key**: **Required** - Provide a password or SSH public key based on authentication type chosen
 
 5. **Deploy**: Click "Run workflow" to start the deployment
 
