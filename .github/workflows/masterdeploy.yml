@@ -1,0 +1,48 @@
+name: Deploy master ARM template (KeyVault + WebApp)
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: 'Target resource group for the deployment'
+        required: true
+        default: 'MyResourceGroup'
+      location:
+        description: 'Azure location to use (forwarded to parameters if needed)'
+        required: false
+        default: 'eastus'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-oidc: true
+
+      - name: Show files (debug)
+        run: |
+          echo "Repository root contains:"
+          ls -la
+
+      - name: Validate ARM template (optional)
+        run: |
+          az deployment group validate \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --template-file ./master.azuredeploy.json \
+            --parameters @./master.parameters.json
+
+      - name: Deploy master ARM template
+        run: |
+          az deployment group create \
+            --resource-group "${{ github.event.inputs.resource_group }}" \
+            --template-file ./master.azuredeploy.json \
+            --parameters @./master.parameters.json \
+            --parameters location="${{ github.event.inputs.location }}"
