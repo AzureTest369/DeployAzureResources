@@ -1,0 +1,265 @@
+name: RBAC Auditing and Remediation
+
+# This workflow performs automated RBAC auditing for Azure Resource Groups
+# It runs on a schedule and can also be triggered manually
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Every Monday at 8 AM UTC
+  workflow_dispatch:      # Allow manual trigger
+
+permissions:
+  id-token: write        # Required to mint OIDC token
+  contents: read
+  issues: write          # Optional: to create issues with findings
+
+jobs:
+  rbac-audit:
+    name: Audit RBAC Assignments
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Subscription Information
+        id: subscription-info
+        run: |
+          echo "Getting subscription information..."
+          SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          echo "subscription_id=$SUBSCRIPTION_ID" >> $GITHUB_OUTPUT
+
+          # Get subscription name for reporting
+          SUB_NAME=$(az account show --query "name" -o tsv)
+          echo "subscription_name=$SUB_NAME" >> $GITHUB_OUTPUT
+          echo "📋 Subscription: $SUB_NAME ($SUBSCRIPTION_ID)"
+
+      - name: List Resource Groups
+        id: list-rgs
+        run: |
+          echo "Listing all resource groups in subscription..."
+          az group list --query "[].{Name:name, Location:location}" -o table
+
+          # Get resource group names for enumeration
+          RG_NAMES=$(az group list --query "[].name" -o tsv)
+          echo "resource_groups<<EOF" >> $GITHUB_OUTPUT
+          echo "$RG_NAMES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          RG_COUNT=$(echo "$RG_NAMES" | wc -l)
+          echo "resource_group_count=$RG_COUNT" >> $GITHUB_OUTPUT
+          echo "📊 Found $RG_COUNT resource groups"
+
+      - name: Enumerate Role Assignments
+        id: enumerate-roles
+        run: |
+          SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          REPORT_DIR="rbac-audit-report"
+          mkdir -p "$REPORT_DIR"
+
+          echo "Enumerating role assignments for resource groups..."
+          echo ""
+
+          # Get all resource groups
+          RESOURCE_GROUPS=$(az group list --query "[].name" -o tsv)
+
+          # Initialize summary
+          echo "# RBAC Audit Report" > "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "**Generated**: $(date -u)" >> "$REPORT_DIR/rbac-summary.md"
+          echo "**Subscription**: ${{ steps.subscription-info.outputs.subscription_name }} ($SUBSCRIPTION_ID)" >> "$REPORT_DIR/rbac-summary.md"
+          echo "**Resource Groups Audited**: ${{ steps.list-rgs.outputs.resource_group_count }}" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "## Role Assignment Summary by Resource Group" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          # Counter for tracking
+          RG_COUNTER=0
+
+          # Iterate through each resource group
+          for RG in $RESOURCE_GROUPS; do
+            RG_COUNTER=$((RG_COUNTER + 1))
+            echo "-----------------------------------------------------------"
+            echo "[$RG_COUNTER] Auditing Resource Group: $RG"
+            echo "-----------------------------------------------------------"
+
+            RG_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG"
+
+            # Get role assignments for this RG
+            echo "Fetching role assignments for scope: $RG_SCOPE"
+
+            # Save detailed JSON output
+            az role assignment list --scope "$RG_SCOPE" --output json > "$REPORT_DIR/${RG}_roles.json"
+
+            # Display table format
+            az role assignment list --scope "$RG_SCOPE" \
+              --query "[].{Principal:principalName, Role:roleDefinitionName, Type:principalType, Scope:scope}" \
+              --output table
+
+            # Count assignments
+            ROLE_COUNT=$(az role assignment list --scope "$RG_SCOPE" --query "length(@)" -o tsv)
+            echo "✓ Found $ROLE_COUNT role assignments in $RG"
+            echo ""
+
+            # Add to summary report
+            echo "### Resource Group: $RG" >> "$REPORT_DIR/rbac-summary.md"
+            echo "" >> "$REPORT_DIR/rbac-summary.md"
+            echo "**Scope**: \`$RG_SCOPE\`" >> "$REPORT_DIR/rbac-summary.md"
+            echo "**Total Role Assignments**: $ROLE_COUNT" >> "$REPORT_DIR/rbac-summary.md"
+            echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+            # Add detailed table to markdown
+            if [ "$ROLE_COUNT" -gt 0 ]; then
+              echo "| Principal | Role | Type | Scope |" >> "$REPORT_DIR/rbac-summary.md"
+              echo "|-----------|------|------|-------|" >> "$REPORT_DIR/rbac-summary.md"
+
+              az role assignment list --scope "$RG_SCOPE" \
+                --query "[].{Principal:principalName, Role:roleDefinitionName, Type:principalType, Scope:scope}" \
+                --output json | jq -r '.[] | "| \(.Principal // "N/A") | \(.Role) | \(.Type) | \(.Scope) |"' \
+                >> "$REPORT_DIR/rbac-summary.md"
+            else
+              echo "_No role assignments found at this scope._" >> "$REPORT_DIR/rbac-summary.md"
+            fi
+
+            echo "" >> "$REPORT_DIR/rbac-summary.md"
+          done
+
+          echo "============================================================"
+          echo "✓ RBAC enumeration complete for $RG_COUNTER resource groups"
+          echo "============================================================"
+
+      - name: Analyze Role Assignments
+        id: analyze-roles
+        run: |
+          REPORT_DIR="rbac-audit-report"
+
+          echo "Analyzing role assignments for security concerns..."
+          echo ""
+
+          # Check for overly permissive roles
+          echo "## Security Analysis" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          # Find Owner and Contributor assignments
+          echo "### High-Privilege Role Assignments" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "The following principals have Owner or Contributor roles:" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          HIGH_PRIV_COUNT=0
+          for RG_FILE in "$REPORT_DIR"/*_roles.json; do
+            if [ -f "$RG_FILE" ]; then
+              RG_NAME=$(basename "$RG_FILE" _roles.json)
+              HIGH_PRIV=$(jq -r '.[] | select(.roleDefinitionName == "Owner" or .roleDefinitionName == "Contributor") | "- **\(.roleDefinitionName)**: \(.principalName // .principalId) (\(.principalType)) in RG: '"$RG_NAME"'"' "$RG_FILE")
+
+              if [ -n "$HIGH_PRIV" ]; then
+                echo "$HIGH_PRIV" >> "$REPORT_DIR/rbac-summary.md"
+                HIGH_PRIV_COUNT=$((HIGH_PRIV_COUNT + 1))
+              fi
+            fi
+          done
+
+          if [ "$HIGH_PRIV_COUNT" -eq 0 ]; then
+            echo "_No Owner or Contributor role assignments found._" >> "$REPORT_DIR/rbac-summary.md"
+          fi
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          # Add recommendations section
+          echo "## Recommendations" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "1. **Principle of Least Privilege**: Review high-privilege assignments (Owner, Contributor) and consider using more specific roles." >> "$REPORT_DIR/rbac-summary.md"
+          echo "2. **Service Principal Review**: Ensure service principals have appropriate expiration dates and are still in use." >> "$REPORT_DIR/rbac-summary.md"
+          echo "3. **Guest User Access**: Review external user access and ensure it's still necessary." >> "$REPORT_DIR/rbac-summary.md"
+          echo "4. **Regular Audits**: Schedule regular reviews of role assignments to maintain security posture." >> "$REPORT_DIR/rbac-summary.md"
+          echo "5. **Conditional Access**: Consider implementing Azure AD Conditional Access policies for sensitive roles." >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          # Add remediation section
+          echo "## Remediation Actions" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "To remove a role assignment:" >> "$REPORT_DIR/rbac-summary.md"
+          echo "\`\`\`bash" >> "$REPORT_DIR/rbac-summary.md"
+          echo "az role assignment delete --assignee <PRINCIPAL-ID> --role <ROLE-NAME> --scope <SCOPE>" >> "$REPORT_DIR/rbac-summary.md"
+          echo "\`\`\`" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+          echo "To assign a more restrictive role:" >> "$REPORT_DIR/rbac-summary.md"
+          echo "\`\`\`bash" >> "$REPORT_DIR/rbac-summary.md"
+          echo "az role assignment create --assignee <PRINCIPAL-ID> --role <ROLE-NAME> --scope <SCOPE>" >> "$REPORT_DIR/rbac-summary.md"
+          echo "\`\`\`" >> "$REPORT_DIR/rbac-summary.md"
+          echo "" >> "$REPORT_DIR/rbac-summary.md"
+
+          echo "✓ Analysis complete"
+
+      - name: Generate Audit Report
+        id: generate-report
+        run: |
+          REPORT_DIR="rbac-audit-report"
+
+          echo "Generating consolidated audit report..."
+
+          # Create a detailed report with all findings
+          cat > "$REPORT_DIR/README.md" << 'EOF'
+          # RBAC Audit Report
+
+          This directory contains the results of the automated RBAC audit.
+
+          ## Files
+
+          - `rbac-summary.md` - High-level summary and analysis
+          - `*_roles.json` - Detailed role assignment data for each resource group
+
+          ## Usage
+
+          1. Review the summary report for overall findings
+          2. Examine individual JSON files for detailed role information
+          3. Follow recommendations in the summary for remediation
+
+          ## Automation
+
+          This report is generated automatically by the RBAC Audit workflow.
+          - Schedule: Weekly (Mondays at 8 AM UTC)
+          - Can be triggered manually from Actions tab
+
+          EOF
+
+          echo "✓ Report generation complete"
+
+      - name: Upload Audit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rbac-audit-report-${{ github.run_number }}
+          path: rbac-audit-report/
+          retention-days: 90
+
+      - name: Post Summary to Job
+        run: |
+          echo "## RBAC Audit Complete 🔐" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Subscription**: ${{ steps.subscription-info.outputs.subscription_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource Groups Audited**: ${{ steps.list-rgs.outputs.resource_group_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Report Date**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Download the Report" >> $GITHUB_STEP_SUMMARY
+          echo "The complete audit report with detailed role assignments is available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Access" >> $GITHUB_STEP_SUMMARY
+          echo "Review the artifact \`rbac-audit-report-${{ github.run_number }}\` for:" >> $GITHUB_STEP_SUMMARY
+          echo "- Summary of role assignments by resource group" >> $GITHUB_STEP_SUMMARY
+          echo "- High-privilege role analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- Security recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "- Remediation actions" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up temporary files..."
+          rm -rf rbac-audit-report/
+          echo "✓ Cleanup complete"
