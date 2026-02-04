@@ -52,12 +52,12 @@ jobs:
 
       - name: Create resource group (if needed)
         run: |
-          az group create --name "RG1" --location "${{ github.event.inputs.location }}"
+          az group create --name RG1 --location "${{ github.event.inputs.location }}"
 
       - name: Deploy ARM template to resource group
         run: |
           az deployment group create \
-            --resource-group "RG1" \
+            --resource-group RG1 \
             --template-file azuredeploy.json \
             --parameters vmName="${{ github.event.inputs.vmName }}" \
             --parameters vmSize="${{ github.event.inputs.vmSize }}" \
