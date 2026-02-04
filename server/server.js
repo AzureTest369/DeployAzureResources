@@ -64,6 +64,14 @@ app.get('/api/params', async (req, res) => {
 // API: deploy selected parameters
 app.post('/api/deploy', async (req, res) => {
   try {
+    // Validate Azure credentials are configured
+    if (!AZURE_CLIENT_ID || !AZURE_TENANT_ID || !AZURE_CLIENT_SECRET || !AZURE_SUBSCRIPTION_ID) {
+      return res.status(401).json({ 
+        error: 'Unauthorized: Azure credentials not configured',
+        details: 'Missing one or more required Azure environment variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID. Please configure these in your environment or Azure App Settings.'
+      });
+    }
+
     const { resourceGroup, deploymentName, parameters, location, templateUrl } = req.body;
     if (!resourceGroup || !deploymentName || !parameters) {
       return res.status(400).json({ error: 'resourceGroup, deploymentName and parameters are required' });
@@ -73,6 +81,8 @@ app.post('/api/deploy', async (req, res) => {
 
     const armParams = {};
     for (const [k, v] of Object.entries(parameters)) {
+      // Don't pass empty SSH values when using password authentication
+      if (k === 'sshPublicKey' && (!v || v === '')) continue;
       armParams[k] = { value: v };
     }
 
@@ -95,6 +105,14 @@ app.post('/api/deploy', async (req, res) => {
     res.json({ deploymentResult: result });
   } catch (err) {
     console.error('Deployment error', err);
+    // Check if it's an authentication error
+    if (err.statusCode === 401 || err.message.includes('authentication') || err.message.includes('credentials')) {
+      return res.status(401).json({ 
+        error: 'Unauthorized: Azure authentication failed',
+        details: 'The Azure credentials (client ID, tenant ID, or client secret) may be invalid, expired, or lack the necessary permissions. Please verify the service principal has Contributor or Owner role on the target resource group.',
+        originalError: err.message
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });

@@ -70,9 +70,18 @@ app.get('/params', (req, res) => {
 // Trigger GitHub Actions workflow_dispatch
 app.post('/deploy', async (req, res) => {
   if (!GITHUB_TOKEN) {
-    return res.status(500).json({ error: 'Server not configured with PERSONAL_ACCESS_TOKEN' });
+    return res.status(401).json({ 
+      error: 'Unauthorized: Server not configured with PERSONAL_ACCESS_TOKEN',
+      details: 'The GitHub Personal Access Token is missing. Please configure the PERSONAL_ACCESS_TOKEN environment variable with a valid token that has "repo" and "workflow" scopes.'
+    });
   }
   const inputs = req.body || {};
+  
+  // Validate that we're not passing empty SSH values when using password auth
+  if (inputs.authenticationType === 'password' && inputs.sshPublicKey) {
+    delete inputs.sshPublicKey;
+  }
+  
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
   const body = {
     ref: WORKFLOW_REF,
@@ -92,6 +101,16 @@ app.post('/deploy', async (req, res) => {
 
     if (r.status === 204) {
       return res.json({ ok: true, message: 'Workflow dispatched' });
+    } else if (r.status === 401) {
+      const txt = await r.text();
+      console.error('GitHub API 401 Unauthorized:', txt);
+      return res.status(401).json({ 
+        ok: false, 
+        error: 'Unauthorized: GitHub token is invalid or expired',
+        details: 'The PERSONAL_ACCESS_TOKEN may be expired, revoked, or lack the necessary permissions. Please verify the token has "repo" and "workflow" scopes and regenerate if needed.',
+        status: r.status, 
+        response: txt 
+      });
     } else {
       const txt = await r.text();
       console.error('GitHub API response:', r.status, txt);
