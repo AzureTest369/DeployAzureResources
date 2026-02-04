@@ -1,0 +1,258 @@
+name: Weekly Cost Optimization Report
+
+# This workflow demonstrates cost management and optimization for Azure resources
+# It runs weekly to generate a cost report and identify optimization opportunities
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+  workflow_dispatch:    # Allow manual trigger
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write  # To create issues with recommendations
+
+jobs:
+  cost-analysis:
+    name: Analyze Azure Costs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Current Month Costs
+        id: current-costs
+        run: |
+          echo "Fetching current month costs..."
+          az costmanagement query \
+            --type Usage \
+            --timeframe MonthToDate \
+            --output table
+          
+          # Save to file for later use
+          az costmanagement query \
+            --type Usage \
+            --timeframe MonthToDate \
+            --output json > current-month-costs.json
+
+      - name: Identify Stopped VMs (Potential Savings)
+        id: stopped-vms
+        run: |
+          echo "Checking for stopped but not deallocated VMs..."
+          
+          # List all VMs with their power state
+          az vm list --query "[].{Name:name, ResourceGroup:resourceGroup, PowerState:powerState}" -o table
+          
+          # Find VMs that are stopped but still incurring costs
+          STOPPED_VMS=$(az vm list --query "[?powerState=='VM stopped'].{Name:name, RG:resourceGroup}" -o json)
+          echo "stopped_vms=$STOPPED_VMS" >> $GITHUB_OUTPUT
+          
+          if [ "$STOPPED_VMS" != "[]" ]; then
+            echo "⚠️ Found stopped VMs that should be deallocated to save costs"
+            echo "$STOPPED_VMS" | jq -r '.[] | "- VM: \(.Name) in RG: \(.RG)"'
+          fi
+
+      - name: Identify Unused Public IPs
+        id: unused-ips
+        run: |
+          echo "Checking for unattached public IP addresses..."
+          
+          # List public IPs that are not attached to any resource
+          UNUSED_IPS=$(az network public-ip list \
+            --query "[?ipConfiguration==null].{Name:name, ResourceGroup:resourceGroup, Cost:'~$5/month'}" \
+            -o json)
+          
+          echo "unused_ips=$UNUSED_IPS" >> $GITHUB_OUTPUT
+          
+          if [ "$UNUSED_IPS" != "[]" ]; then
+            echo "💰 Found unused public IPs (cost savings opportunity)"
+            echo "$UNUSED_IPS" | jq -r '.[] | "- IP: \(.Name) in RG: \(.ResourceGroup) - Saves: \(.Cost)"'
+          fi
+
+      - name: Identify Unused Disks
+        id: unused-disks
+        run: |
+          echo "Checking for unattached managed disks..."
+          
+          # List disks that are not attached to any VM
+          UNUSED_DISKS=$(az disk list \
+            --query "[?managedBy==null].{Name:name, ResourceGroup:resourceGroup, Size:diskSizeGb, SKU:sku.name}" \
+            -o json)
+          
+          echo "unused_disks=$UNUSED_DISKS" >> $GITHUB_OUTPUT
+          
+          if [ "$UNUSED_DISKS" != "[]" ]; then
+            echo "💰 Found unattached disks (cost savings opportunity)"
+            echo "$UNUSED_DISKS" | jq -r '.[] | "- Disk: \(.Name) in RG: \(.ResourceGroup) - Size: \(.Size)GB - SKU: \(.SKU)"'
+          fi
+
+      - name: Check Storage Account Access Tiers
+        id: storage-tiers
+        run: |
+          echo "Checking storage accounts for access tier optimization..."
+          
+          # List all storage accounts and their access tiers
+          az storage account list \
+            --query "[].{Name:name, ResourceGroup:resourceGroup, AccessTier:accessTier, Kind:kind}" \
+            -o table
+
+      - name: List Resource Groups with Low Utilization
+        id: low-utilization
+        run: |
+          echo "Listing all resource groups for review..."
+          az group list --query "[].{Name:name, Location:location}" -o table
+          
+          echo ""
+          echo "💡 Recommendation: Review resource groups for unused resources"
+
+      - name: Generate Cost Optimization Report
+        id: generate-report
+        run: |
+          cat > cost-report.md << 'EOF'
+          # Azure Cost Optimization Report
+          
+          **Generated**: $(date)
+          **Subscription**: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          
+          ## Summary
+          
+          This report identifies potential cost optimization opportunities in your Azure environment.
+          
+          ## Findings
+          
+          ### 1. Stopped Virtual Machines
+          
+          VMs that are stopped but not deallocated continue to incur charges for storage and reserved IP addresses.
+          
+          **Action**: Deallocate stopped VMs to eliminate compute charges.
+          
+          ```bash
+          # To deallocate a VM:
+          az vm deallocate --resource-group <RG-NAME> --name <VM-NAME>
+          ```
+          
+          ### 2. Unused Public IP Addresses
+          
+          Unattached public IP addresses cost approximately $5/month per IP.
+          
+          **Action**: Delete unused public IPs.
+          
+          ```bash
+          # To delete a public IP:
+          az network public-ip delete --resource-group <RG-NAME> --name <IP-NAME>
+          ```
+          
+          ### 3. Unattached Managed Disks
+          
+          Orphaned disks continue to incur storage costs even when not attached to VMs.
+          
+          **Action**: Review and delete unnecessary disks (after confirming they're not needed).
+          
+          ```bash
+          # To delete a disk:
+          az disk delete --resource-group <RG-NAME> --name <DISK-NAME>
+          ```
+          
+          ### 4. Storage Account Optimization
+          
+          Consider moving infrequently accessed data to Cool or Archive tiers for cost savings.
+          
+          **Savings**: Up to 50% for Cool tier, up to 90% for Archive tier
+          
+          ### 5. Right-Sizing Recommendations
+          
+          Review VM utilization metrics and consider downsizing over-provisioned VMs.
+          
+          ## Recommended Actions
+          
+          1. **Immediate** (High Impact):
+             - Deallocate stopped VMs not in use
+             - Delete unused public IP addresses
+             - Remove orphaned disks (after verification)
+          
+          2. **Short-term** (Medium Impact):
+             - Review and adjust VM sizes based on utilization
+             - Move cold storage to Cool/Archive tiers
+             - Implement auto-shutdown for dev/test VMs
+          
+          3. **Long-term** (Strategic):
+             - Implement reserved instances for predictable workloads
+             - Set up Azure Cost Management budgets and alerts
+             - Review and optimize resource placement across regions
+          
+          ## Cost Management Best Practices
+          
+          - Tag all resources with cost center, environment, and owner tags
+          - Set up budget alerts in Azure Cost Management
+          - Schedule non-production resources to shut down after hours
+          - Use Azure Advisor recommendations regularly
+          - Implement Azure Policy to prevent expensive resources
+          
+          ## Next Steps
+          
+          Review the findings above and take appropriate action. For automated remediation,
+          consider creating additional workflows for:
+          - Auto-deallocation of stopped VMs
+          - Auto-deletion of old orphaned resources
+          - Scheduled scaling of resources
+          
+          ---
+          
+          For questions or to discuss findings, please review the workflow run logs.
+          EOF
+          
+          cat cost-report.md
+
+      - name: Upload Cost Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-optimization-report
+          path: |
+            cost-report.md
+            current-month-costs.json
+          retention-days: 30
+
+      - name: Post Summary
+        run: |
+          echo "## Cost Optimization Report Generated 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A detailed cost optimization report has been generated and uploaded as an artifact." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Stats" >> $GITHUB_STEP_SUMMARY
+          echo "- **Subscription**: ${{ secrets.AZURE_SUBSCRIPTION_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Report Date**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Download the Report" >> $GITHUB_STEP_SUMMARY
+          echo "The full report is available in the workflow artifacts." >> $GITHUB_STEP_SUMMARY
+
+      # Optional: Create a GitHub Issue with recommendations
+      # Uncomment if you want to track optimization opportunities as issues
+      # - name: Create Optimization Issue
+      #   uses: actions/github-script@v7
+      #   with:
+      #     script: |
+      #       const fs = require('fs');
+      #       const report = fs.readFileSync('cost-report.md', 'utf8');
+      #       
+      #       await github.rest.issues.create({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         title: `Cost Optimization Report - ${new Date().toISOString().split('T')[0]}`,
+      #         body: report,
+      #         labels: ['cost-optimization', 'automated']
+      #       });
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up temporary files..."
+          rm -f current-month-costs.json cost-report.md
