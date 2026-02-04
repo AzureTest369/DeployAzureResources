@@ -29,26 +29,35 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Cost Management Extension
-        run: az extension add --name costmanagement
-
-      - name: Update Cost Management Extension
-        run: az extension update --name costmanagement || true
-
+      # Note: The az costmanagement extension's 'query' command is not reliably available
+      # across all Azure CLI versions and may result in "query is misspelled or not recognized" errors.
+      # Using az consumption usage list as a stable alternative to retrieve cost data.
       - name: Get Current Month Costs
         id: current-costs
         run: |
-          echo "Fetching current month costs..."
-          az costmanagement query \
-            --type Usage \
-            --timeframe MonthToDate \
-            --output table
+          echo "Fetching current month usage data..."
           
-          # Save to file for later use
-          az costmanagement query \
-            --type Usage \
-            --timeframe MonthToDate \
+          # Get current month start date (first day of current month)
+          START_DATE=$(date -u -d "$(date +%Y-%m-01)" +%Y-%m-%dT%H:%M:%SZ)
+          # Get current date
+          END_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          echo "Fetching usage from $START_DATE to $END_DATE"
+          
+          # Use az consumption usage list to retrieve usage data for the current month
+          # This command is more stable and widely supported than az costmanagement query
+          az consumption usage list \
+            --start-date "$START_DATE" \
+            --end-date "$END_DATE" \
+            --output table || echo "Unable to display table format"
+          
+          # Save detailed usage data to file for later use
+          az consumption usage list \
+            --start-date "$START_DATE" \
+            --end-date "$END_DATE" \
             --output json > current-month-costs.json
+          
+          echo "✅ Cost data saved to current-month-costs.json"
 
       - name: Identify Stopped VMs (Potential Savings)
         id: stopped-vms
