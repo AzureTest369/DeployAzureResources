@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simple VM Deploy UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 720px; margin: 20px auto; }
+    label { display:block; margin-top:10px; }
+    select, input, textarea { width:100%; padding:8px; margin-top:4px; }
+    button { margin-top:12px; padding:10px 16px; }
+    .status { margin-top:12px; }
+  </style>
+</head>
+<body>
+  <h1>Deploy VM</h1>
+  <form id="deployForm">
+    <label>VM Name
+      <input id="vmName" name="vmName" required>
+    </label>
+
+    <label>Location
+      <input id="location" name="location" required>
+    </label>
+
+    <label>VM Size
+      <select id="vmSize" name="vmSize"></select>
+    </label>
+
+    <label>Admin Username
+      <input id="adminUsername" name="adminUsername" required>
+    </label>
+
+    <label>SSH Public Key
+      <textarea id="sshKeyData" name="sshKeyData" rows="4" placeholder="ssh-rsa AAAA..."></textarea>
+    </label>
+
+    <button type="submit">Deploy</button>
+  </form>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    async function fetchParams() {
+      const res = await fetch('/params');
+      const data = await res.json();
+      const params = data.parameters || {};
+      // Fill defaults
+      if (params.vmName && params.vmName.defaultValue) {
+        document.getElementById('vmName').value = params.vmName.defaultValue;
+      }
+      if (params.location && params.location.defaultValue) {
+        document.getElementById('location').value = params.location.defaultValue;
+      }
+      if (params.adminUsername && params.adminUsername.defaultValue) {
+        document.getElementById('adminUsername').value = params.adminUsername.defaultValue;
+      }
+      // Populate vmSize dropdown
+      const vmSizeSelect = document.getElementById('vmSize');
+      if (params.vmSize) {
+        if (params.vmSize.allowedValues && params.vmSize.allowedValues.length) {
+          params.vmSize.allowedValues.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.innerText = v;
+            vmSizeSelect.appendChild(opt);
+          });
+          if (params.vmSize.defaultValue) {
+            vmSizeSelect.value = params.vmSize.defaultValue;
+          }
+        } else {
+          // fallback if no allowedValues
+          const opt = document.createElement('option');
+          opt.value = params.vmSize.defaultValue || 'Standard_B1s';
+          opt.innerText = opt.value;
+          vmSizeSelect.appendChild(opt);
+        }
+      }
+    }
+
+    document.getElementById('deployForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        vmName: document.getElementById('vmName').value,
+        location: document.getElementById('location').value,
+        vmSize: document.getElementById('vmSize').value,
+        adminUsername: document.getElementById('adminUsername').value,
+        sshKeyData: document.getElementById('sshKeyData').value
+      };
+      document.getElementById('status').innerText = 'Dispatching workflow...';
+      const res = await fetch('/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('status').innerText = 'Workflow dispatched. Check Actions tab in GitHub.';
+      } else {
+        document.getElementById('status').innerText = 'Error: ' + JSON.stringify(data);
+      }
+    });
+
+    fetchParams().catch(err => { console.error(err); document.getElementById('status').innerText = 'Failed to load params'; });
+  </script>
+</body>
+</html>
