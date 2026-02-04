@@ -10,11 +10,11 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ===== GitHub configuration from environment variables =====
-const GITHUB_OWNER = anweshak369 || 'AzureTest369';
-const GITHUB_REPO  = DeployAzureResources || 'DeployAzureResources'; // repository containing the workflow
-const GITHUB_TOKEN = process.env.PERSONAL_ACCESS_TOKEN; // GitHub PAT (must include repo & workflow scopes)
-const WORKFLOW_FILE = deploy-vm.yml || 'deploy-vm.yml'; // filename under .github/workflows
-const WORKFLOW_REF  = main || 'main'; // branch name where the workflow exists
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'AzureTest369';
+const GITHUB_REPO  = process.env.GITHUB_REPO || 'DeployAzureResources'; // repository containing the workflow
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // GitHub PAT (must include repo & workflow scopes)
+const WORKFLOW_FILE = process.env.WORKFLOW_FILE || 'deploy-vm.yml'; // filename under .github/workflows
+const WORKFLOW_REF  = process.env.WORKFLOW_REF || 'main'; // branch name where the workflow exists
 
 // Validate required configuration at startup
 if (!GITHUB_TOKEN) {
