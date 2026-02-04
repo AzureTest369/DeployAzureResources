@@ -50,7 +50,7 @@ jobs:
           az consumption usage list \
             --start-date "$START_DATE" \
             --end-date "$END_DATE" \
-            --output table || echo "Unable to display table format"
+            --output table || echo "⚠️ Warning: Could not display usage data in table format (data still saved to JSON)"
           
           # Save detailed usage data to file for later use
           az consumption usage list \
