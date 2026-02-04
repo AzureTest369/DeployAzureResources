@@ -54,50 +54,216 @@ To trigger workflows from the web UI, you need a GitHub Personal Access Token.
    export PERSONAL_ACCESS_TOKEN="your_github_token_here"
    ```
 
-2. Start the server:
+This repository provides automated infrastructure deployment solutions for Azure using GitHub Actions and ARM templates. It enables Azure Cloud Infrastructure Administrators to deploy, manage, and maintain Azure resources efficiently through Infrastructure as Code (IaC).
+
+## Overview
+
+The repository contains:
+- ARM templates for deploying various Azure resources (VMs, KeyVault, Web Apps)
+- GitHub Actions workflows for automated deployments
+- Parameter files for environment-specific configurations
+- A web-based UI for triggering deployments
+
+## Features
+
+### Current Deployments
+
+1. **Virtual Machine Deployment** (`deploy-vm.yml`)
+   - Deploy Linux VMs with customizable configurations
+   - SSH key authentication
+   - Automated network configuration (VNet, Subnet, NSG)
+   - Supports multiple VM sizes
+
+2. **Master Template Deployment** (`masterdeploy.yml`)
+   - Deploy KeyVault and Web App together
+   - Linked template architecture
+   - OIDC authentication for secure Azure access
+
+3. **Basic Deployment** (`deploy.yml`)
+   - Simple ARM template deployment
+   - Triggered on push to main branch
+
+### Web UI
+
+A web-based interface is available for triggering VM deployments:
+- Express.js backend (`server.js`)
+- Dynamic form generation based on ARM template parameters
+- Integration with GitHub Actions API
+
+## Getting Started
+
+### Prerequisites
+
+- Azure Subscription
+- GitHub repository with necessary secrets configured:
+  - `AZURE_CLIENT_ID`
+  - `AZURE_TENANT_ID`
+  - `AZURE_SUBSCRIPTION_ID`
+  - `RESOURCE_GROUP`
+- OIDC federation configured between GitHub and Azure
+
+### Quick Start
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/AzureTest369/DeployAzureResources.git
+   cd DeployAzureResources
+   ```
+
+2. **Configure Azure authentication**:
+   - Set up OIDC federation in Azure
+   - Add required secrets to GitHub repository settings
+
+3. **Deploy resources**:
+   - Go to Actions tab in GitHub
+   - Select a workflow (e.g., "Deploy VM via ARM template")
+   - Click "Run workflow"
+   - Fill in required parameters
+   - Click "Run workflow" to start deployment
+
+## Repository Structure
+
+```
+.
+├── .github/
+│   └── workflows/          # GitHub Actions workflow files
+│       ├── deploy-vm.yml
+│       ├── deploy.yml
+│       ├── masterdeploy.yml
+│       ├── keyvault.json
+│       └── webapp.json
+├── client/                 # Frontend files
+├── public/                 # Static assets
+├── server/                 # Server-side files
+├── azuredeploy.json        # VM ARM template
+├── azuredeploy.parameters.json
+├── master.azuredeploy.json # Master template for linked deployments
+├── master.parameters.json
+├── masterdeploy.yml        # Workflow file (root)
+├── server.js               # Express server for web UI
+└── package.json
+```
+
+## Use Cases and Examples
+
+For comprehensive documentation on additional use cases, workflows, and best practices for GitHub Actions and GitHub Agents (Copilot) in Azure infrastructure management, see:
+
+📚 **[Azure GitHub Use Cases Documentation](AZURE_GITHUB_USE_CASES.md)** - Comprehensive guide with detailed examples and explanations
+
+⚡ **[Quick Reference Guide](QUICK_REFERENCE.md)** - Condensed reference for common patterns and quick access
+
+This documentation covers:
+- 10+ GitHub Actions use cases for Azure administrators
+- 10+ GitHub Copilot/Agents use cases
+- Cost optimization workflows (with [example implementation](.github/workflows/cost-optimization.yml))
+- Security and compliance automation
+- Backup and disaster recovery
+- Multi-environment deployments
+- Container and Kubernetes operations
+- Best practices and troubleshooting tips
+- And much more!
+
+## Workflows
+
+### Deploy VM via ARM Template (OIDC)
+
+Deploys a Linux virtual machine with the following features:
+- Custom VM name, size, and location
+- SSH key authentication
+- Automated resource group creation
+- Network configuration (VNet, Subnet, Public IP, NSG)
+
+**Trigger**: Manual (workflow_dispatch)
+
+**Parameters**:
+- `vmName`: Name of the VM
+- `location`: Azure region
+- `vmSize`: VM size (Standard_B1s, Standard_B2s, Standard_D2s_v3)
+- `adminUsername`: Admin username
+- `sshKeyData`: SSH public key
+
+### Deploy Master ARM Template
+
+Deploys a Key Vault and Web App using linked templates:
+- Modular template architecture
+- Reusable linked templates hosted on GitHub
+- Environment-specific configurations
+
+**Trigger**: Manual (workflow_dispatch)
+
+**Parameters**:
+- `resource_group`: Target resource group
+- `location`: Azure region
+
+### Deploy to Azure
+
+Simple continuous deployment workflow:
+- Triggered on push to main branch
+- Deploys ARM template automatically
+- Uses OIDC for authentication
+
+## Security
+
+This repository uses **OpenID Connect (OIDC)** for Azure authentication, which provides:
+- No stored credentials in GitHub
+- Short-lived tokens
+- Fine-grained access control
+- Enhanced security posture
+
+All secrets are stored in GitHub Secrets and never exposed in code or logs.
+
+## Web UI Usage
+
+To use the web-based deployment interface:
+
+1. **Install dependencies**:
    ```bash
    npm install
+   ```
+
+2. **Start the server**:
+   ```bash
    npm start
    ```
 
-3. Open http://localhost:3000 in your browser
+3. **Access the UI**:
+   - Open browser to `http://localhost:3000`
+   - Fill in deployment parameters
+   - Click "Deploy" to trigger GitHub Actions workflow
 
-4. Fill in the VM parameters and click "Deploy"
+## Contributing
 
-5. The UI will trigger the GitHub Actions workflow, which will:
-   - Authenticate to Azure using OIDC
-   - Create the resource group (if needed)
-   - Deploy the ARM template
-   - Provision the VM
+Contributions are welcome! Please follow these guidelines:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test your changes thoroughly
+5. Submit a pull request
 
-## ARM Template Parameters
+## Best Practices
 
-The `azuredeploy.json` template accepts the following parameters:
+1. **Security**:
+   - Never commit secrets or credentials
+   - Use OIDC for Azure authentication
+   - Follow least-privilege principles
+   - Enable branch protection rules
 
-- **vmName**: Name of the virtual machine (default: "simplevm")
-- **location**: Azure region (default: "eastus")
-- **vmSize**: VM size - Standard_B1s, Standard_B2s, or Standard_D2s_v3 (default: "Standard_B1s")
-- **adminUsername**: Admin username for the VM (default: "azureuser")
-- **authenticationType**: Type of authentication - "password" or "sshPublicKey" (default: "password")
-- **adminPasswordOrKey**: Password or SSH public key for authentication (optional, secure string)
+2. **Testing**:
+   - Validate ARM templates before deployment
+   - Test in non-production environments first
+   - Use Azure Policy for compliance checks
 
-## Resources Created
+3. **Cost Management**:
+   - Use appropriate VM sizes for workloads
+   - Implement auto-shutdown for dev/test resources
+   - Tag resources for cost tracking
+   - Monitor spending regularly
 
-The ARM template creates:
-- Virtual Network (10.0.0.0/16)
-- Subnet (10.0.0.0/24)
-- Public IP Address
-- Network Interface
-- Network Security Group
-- Virtual Machine (Ubuntu 22.04 LTS)
-
-## Security Notes
-
-- ⚠️ **Never commit GitHub tokens or Azure credentials to the repository**
-- Use GitHub Secrets for sensitive data
-- OIDC authentication is preferred over service principal secrets
-- SSH keys should be generated securely and never committed
-- When using password authentication, ensure passwords meet Azure's complexity requirements
+4. **Reliability**:
+   - Implement proper error handling
+   - Use retry logic for transient failures
+   - Monitor deployments and set up alerts
+   - Maintain rollback procedures
 
 ## Troubleshooting
 
@@ -105,22 +271,31 @@ The ARM template creates:
 - **Cause**: Invalid or missing GitHub token
 - **Solution**: Ensure `PERSONAL_ACCESS_TOKEN` environment variable is set with a valid PAT that has `repo` and `workflow` scopes
 
-### OIDC Authentication Failed
-- **Cause**: Azure secrets not configured or incorrect
-- **Solution**: Verify all Azure secrets are set correctly in GitHub repository settings
+2. **Template Validation Errors**:
+   - Run `az deployment group validate` locally first
+   - Check parameter file syntax
+   - Verify resource naming conventions
 
-### VM Deployment Failed
-- **Cause**: Invalid parameters or Azure quota limits
-- **Solution**: Check the GitHub Actions logs for detailed error messages
+3. **Deployment Failures**:
+   - Check Azure Activity Log for detailed errors
+   - Verify quota limits in subscription
+   - Ensure resource group exists and is in correct region
 
-## Files
+## Resources
 
-- `azuredeploy.json`: Main ARM template for VM
-- `azuredeploy.parameters.json`: Default parameters
-- `.github/workflows/deploy-vm.yml`: GitHub Actions workflow for VM deployment
-- `server.js`: Backend server for web UI
-- `public/index.html`: Web UI for triggering deployments
+- [Azure ARM Template Documentation](https://docs.microsoft.com/en-us/azure/azure-resource-manager/templates/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Azure CLI Documentation](https://docs.microsoft.com/en-us/cli/azure/)
+- [OIDC with GitHub Actions](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-azure)
 
 ## License
 
-MIT
+This project is provided as-is for educational and demonstration purposes.
+
+## Support
+
+For issues, questions, or contributions, please open an issue in this repository.
+
+---
+
+**Note**: Remember to update your GitHub secrets and Azure configurations before running workflows. See the [Use Cases documentation](AZURE_GITHUB_USE_CASES.md) for more advanced scenarios and examples.
