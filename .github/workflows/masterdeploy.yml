@@ -12,7 +12,7 @@ on:
       location:
         description: 'Azure location to use (forwarded to parameters if needed)'
         required: false
-        default: 'eastus'
+        default: 'eastu'
 
 jobs:
   deploy:
@@ -39,7 +39,9 @@ jobs:
           az deployment group validate \
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --template-file ./master.azuredeploy.json \
-            --parameters @./master.parameters.json
+            --parameters @./master.parameters.json \
+            --parameters keyVaultTemplateUri="https://raw.githubusercontent.com/AzureTest369/DeployAzureResources/main/.github/workflows/keyvault.json" \
+            --parameters webAppTemplateUri="https://raw.githubusercontent.com/AzureTest369/DeployAzureResources/main/.github/workflows/webapp.json"
 
       - name: Deploy master ARM template
         run: |
@@ -47,4 +49,6 @@ jobs:
             --resource-group "${{ github.event.inputs.resource_group }}" \
             --template-file ./master.azuredeploy.json \
             --parameters @./master.parameters.json \
+            --parameters keyVaultTemplateUri="https://raw.githubusercontent.com/AzureTest369/DeployAzureResources/main/.github/workflows/keyvault.json" \
+            --parameters webAppTemplateUri="https://raw.githubusercontent.com/AzureTest369/DeployAzureResources/main/.github/workflows/webapp.json" \
             --parameters location="${{ github.event.inputs.location }}"
