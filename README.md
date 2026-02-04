@@ -87,7 +87,7 @@ The ARM template creates:
 - Public IP Address
 - Network Interface
 - Network Security Group
-- Virtual Machine (Ubuntu 18.04 LTS)
+- Virtual Machine (Ubuntu 22.04 LTS)
 
 ## Security Notes
 
