@@ -58,13 +58,6 @@
           control.type = 'password';
           control.name = key;
           if (meta.defaultValue) control.value = meta.defaultValue;
-        } else if (key.toLowerCase().includes('ssh') || key.toLowerCase().includes('key')) {
-          // For sshKeyData and similar use a textarea
-          control = document.createElement('textarea');
-          control.name = key;
-          control.rows = 4;
-          control.placeholder = 'ssh-rsa AAAA...';
-          if (meta.defaultValue) control.value = meta.defaultValue;
         } else {
           // default: text input
           control = document.createElement('input');
