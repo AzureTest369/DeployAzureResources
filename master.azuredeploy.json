@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "keyVaultTemplateUri": {
+      "type": "string",
+      "metadata": {
+        "description": "Raw URL to the Key Vault ARM template (templateLink.uri). Replace with the raw.githubusercontent.com URL for the file in this repo."
+      }
+    },
+    "webAppTemplateUri": {
+      "type": "string",
+      "metadata": {
+        "description": "Raw URL to the Web App ARM template (templateLink.uri). Replace with the raw.githubusercontent.com URL for the file in this repo."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "metadata": {
+        "description": "Default location forwarded to child templates (can be overridden in child parameter objects)."
+      }
+    },
+    "keyVaultParameters": {
+      "type": "object",
+      "metadata": {
+        "description": "Object containing parameters for the Key Vault template. Example: { \"vaultName\": { \"value\": \"myKV\" }, \"tenantId\": { \"value\": \"...\" }, ... }"
+      }
+    },
+    "webAppParameters": {
+      "type": "object",
+      "metadata": {
+        "description": "Object containing parameters for the Web App template. Example: { \"hostingPlanName\": { \"value\": \"plan\" }, \"webAppName\": { \"value\": \"site\" }, ... }"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "keyVaultDeployment",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[parameters('keyVaultTemplateUri')]"
+        },
+        "parameters": "[parameters('keyVaultParameters')]"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2021-04-01",
+      "name": "webAppDeployment",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments','keyVaultDeployment')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[parameters('webAppTemplateUri')]"
+        },
+        "parameters": "[parameters('webAppParameters')]"
+      }
+    }
+  ],
+  "outputs": {
+    "keyVaultUri": {
+      "type": "string",
+      "value": "[reference('keyVaultDeployment').outputs.vaultUri.value]"
+    },
+    "webAppDefaultHostName": {
+      "type": "string",
+      "value": "[reference('webAppDeployment').outputs.webAppDefaultHostName.value]"
+    }
+  }
+}
