@@ -24,7 +24,7 @@ The GitHub Actions workflows use OIDC (OpenID Connect) to authenticate with Azur
 To trigger workflows from the web UI, you need a GitHub Personal Access Token.
 
 **Required Environment Variables** (for running the web server):
-- `GITHUB_TOKEN`: GitHub Personal Access Token with `repo` and `workflow` scopes
+- `PERSONAL_ACCESS_TOKEN`: GitHub Personal Access Token with `repo` and `workflow` scopes
 
 **Optional Environment Variables**:
 - `GITHUB_OWNER`: GitHub username/org (default: 'AzureTest369')
@@ -51,7 +51,7 @@ To trigger workflows from the web UI, you need a GitHub Personal Access Token.
 ### Option 2: Deploy via Web UI
 1. Set the required environment variables:
    ```bash
-   export GITHUB_TOKEN="your_github_token_here"
+   export PERSONAL_ACCESS_TOKEN="your_github_token_here"
    ```
 
 2. Start the server:
@@ -103,7 +103,7 @@ The ARM template creates:
 
 ### 401 Authentication Error
 - **Cause**: Invalid or missing GitHub token
-- **Solution**: Ensure `GITHUB_TOKEN` environment variable is set with a valid PAT that has `repo` and `workflow` scopes
+- **Solution**: Ensure `PERSONAL_ACCESS_TOKEN` environment variable is set with a valid PAT that has `repo` and `workflow` scopes
 
 ### OIDC Authentication Failed
 - **Cause**: Azure secrets not configured or incorrect

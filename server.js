@@ -12,15 +12,15 @@ app.use(express.static('public'));
 // ===== GitHub configuration from environment variables =====
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'AzureTest369';
 const GITHUB_REPO  = process.env.GITHUB_REPO || 'DeployAzureResources'; // repository containing the workflow
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // GitHub PAT (must include repo & workflow scopes)
+const GITHUB_TOKEN = process.env.PERSONAL_ACCESS_TOKEN; // GitHub PAT (must include repo & workflow scopes)
 const WORKFLOW_FILE = process.env.WORKFLOW_FILE || 'deploy-vm.yml'; // filename under .github/workflows
 const WORKFLOW_REF  = process.env.WORKFLOW_REF || 'main'; // branch name where the workflow exists
 
 // Validate required configuration at startup
 if (!GITHUB_TOKEN) {
-  console.error('ERROR: GITHUB_TOKEN environment variable is required but not set.');
+  console.error('ERROR: PERSONAL_ACCESS_TOKEN environment variable is required but not set.');
   console.error('Please set a GitHub Personal Access Token with "repo" and "workflow" scopes.');
-  console.error('Example: export GITHUB_TOKEN="your_token_here"');
+  console.error('Example: export PERSONAL_ACCESS_TOKEN="your_token_here"');
   console.error('See .env.example for more details.');
   process.exit(1);
 }
@@ -70,7 +70,7 @@ app.get('/params', (req, res) => {
 // Trigger GitHub Actions workflow_dispatch
 app.post('/deploy', async (req, res) => {
   if (!GITHUB_TOKEN) {
-    return res.status(500).json({ error: 'Server not configured with GITHUB_TOKEN' });
+    return res.status(500).json({ error: 'Server not configured with PERSONAL_ACCESS_TOKEN' });
   }
   const inputs = req.body || {};
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
