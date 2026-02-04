@@ -1,4 +1,4 @@
-name: Deploy VM via ARM template
+name: Deploy VM via ARM template (OIDC)
 
 on:
   workflow_dispatch:
@@ -21,26 +21,32 @@ on:
         default: 'azureuser'
       sshKeyData:
         description: 'SSH public key'
-        required: false
+        required: true
         default: ''
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write     # required to mint OIDC token
+      contents: read
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Login to Azure
+      - name: Login to Azure using OIDC
         uses: azure/login@v1
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create resource group (if needed)
         run: |
           az group create --name "${{ secrets.RESOURCE_GROUP }}" --location "${{ github.event.inputs.location }}"
 
-      - name: Deploy ARM template
+      - name: Deploy ARM template to resource group
         run: |
           az deployment group create \
             --resource-group "${{ secrets.RESOURCE_GROUP }}" \
