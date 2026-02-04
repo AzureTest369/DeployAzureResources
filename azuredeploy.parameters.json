@@ -14,7 +14,10 @@
     "adminUsername": {
       "value": "azureuser"
     },
-    "adminPassword": {
+    "authenticationType": {
+      "value": "password"
+    },
+    "adminPasswordOrKey": {
       "value": ""
     }
   }
