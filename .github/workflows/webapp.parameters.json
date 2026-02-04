@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "hostingPlanName": {
+      "value": "myAppServicePlan"
+    },
+    "webAppName": {
+      "value": "myWebAppExample"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "skuName": {
+      "value": "S1"
+    },
+    "skuTier": {
+      "value": "Standard"
+    },
+    "skuCapacity": {
+      "value": 1
+    },
+    "siteAppSettings": {
+      "value": [
+        {
+          "name": "WEBSITE_RUN_FROM_PACKAGE",
+          "value": "1"
+        },
+        {
+          "name": "EXAMPLE_SETTING",
+          "value": "example-value"
+        }
+      ]
+    }
+  }
+}
