@@ -51,7 +51,7 @@ If you want to use the web interface:
 
 1. **Set Environment Variable**:
    ```bash
-   export GITHUB_TOKEN="ghp_your_token_here"
+   export PERSONAL_ACCESS_TOKEN="ghp_your_token_here"
    ```
 
 2. **Install Dependencies**:
@@ -93,7 +93,7 @@ Then paste the output (starts with `ssh-rsa ...`) into the adminPasswordOrKey pa
 
 ### 401 Error
 - **Old Issue**: This was caused by an expired hardcoded token (now fixed!)
-- **New Issue**: If you still see 401, ensure your `GITHUB_TOKEN` environment variable is set and valid
+- **New Issue**: If you still see 401, ensure your `PERSONAL_ACCESS_TOKEN` environment variable is set and valid
 
 ### OIDC Authentication Failed
 - Verify Azure secrets are configured in GitHub:
