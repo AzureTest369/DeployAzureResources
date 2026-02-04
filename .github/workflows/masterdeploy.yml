@@ -8,7 +8,7 @@ on:
       resource_group:
         description: 'Target resource group for the deployment'
         required: true
-        default: 'MyResourceGroup'
+        default: 'RG1'
       location:
         description: 'Azure location to use (forwarded to parameters if needed)'
         required: false
