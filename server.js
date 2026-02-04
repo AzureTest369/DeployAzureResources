@@ -17,6 +17,13 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const WORKFLOW_FILE = process.env.WORKFLOW_FILE || 'deploy-vm.yml';
 const WORKFLOW_REF = process.env.WORKFLOW_REF || 'main';
 
+// Validate required environment variables
+if (!GITHUB_TOKEN) {
+  console.error('ERROR: GITHUB_TOKEN environment variable is required');
+  console.error('Please set GITHUB_TOKEN in your environment or create a .env file');
+  process.exit(1);
+}
+
 // Debug: Check if GITHUB_TOKEN is present (for testing only)
 // console.log('GITHUB_TOKEN present?', !!process.env.GITHUB_TOKEN);
 // ===============================================
