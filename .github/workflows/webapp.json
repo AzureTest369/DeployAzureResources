@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "hostingPlanName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the App Service Plan to create"
+      }
+    },
+    "webAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Web App to create"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "metadata": {
+        "description": "Azure location for the resources"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "S1",
+      "metadata": {
+        "description": "SKU name for the App Service Plan (e.g. F1, B1, S1, P1v2)"
+      }
+    },
+    "skuTier": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "SKU tier for the App Service Plan"
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of instances for the App Service Plan"
+      }
+    },
+    "siteAppSettings": {
+      "type": "array",
+      "defaultValue": [
+        {
+          "name": "WEBSITE_RUN_FROM_PACKAGE",
+          "value": "1"
+        }
+      ],
+      "metadata": {
+        "description": "Array of app settings (objects with name and value) to apply to the Web App"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-02-01",
+      "name": "[parameters('hostingPlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "tier": "[parameters('skuTier')]",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-02-01",
+      "name": "[parameters('webAppName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+        "siteConfig": {
+          "appSettings": "[parameters('siteAppSettings')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "webAppDefaultHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('webAppName'))).defaultHostName]"
+    },
+    "webAppResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Web/sites', parameters('webAppName'))]"
+    }
+  }
+}
